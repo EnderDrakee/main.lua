@@ -1,0 +1,383 @@
+-- Bubu Hub v35 (Identical Logic to Rock Farm)
+
+local UserInputService = game:GetService("UserInputService")
+
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local RunService = game:GetService("RunService")
+
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+
+
+
+_G.Settings = {
+
+    AutoFarm = false,
+
+    SelectedRocks = {},
+
+    AutoCombat = false,
+
+    SelectedMobs = {},
+
+    Method = "above", 
+
+    TweenSpeed = 43,
+
+    Distance = 5
+
+}
+
+
+
+local TargetCache = {}
+
+local LastScan = 0
+
+local MouseOnGui = false
+
+
+
+-- === DRAG SYSTEM (Sidebar Only) ===
+
+local function MakeDraggable(gui, handle)
+
+    local dragging, dragInput, dragStart, startPos
+
+    handle.InputBegan:Connect(function(input)
+
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+            dragging = true; dragStart = input.Position; startPos = gui.Position
+
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+
+        end
+
+    end)
+
+    handle.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
+
+    RunService.RenderStepped:Connect(function()
+
+        if dragging and dragInput then
+
+            local delta = dragInput.Position - dragStart
+
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+
+        end
+
+    end)
+
+end
+
+
+
+-- === CLICK LOGIC ===
+
+task.spawn(function()
+
+    while true do
+
+        if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and not MouseOnGui then
+
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+
+            task.wait(0.4); VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.01)
+
+        else task.wait(0.2) end
+
+    end
+
+end)
+
+
+
+-- === MAIN FARM LOOP (Mirroring Rock Logic) ===
+
+task.spawn(function()
+
+    while true do
+
+        RunService.Heartbeat:Wait()
+
+        if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+            
+
+            -- Scansione identica alle Rocce
+
+            if tick() - LastScan > 5 then
+
+                TargetCache = {}
+
+                local currentList = _G.Settings.AutoCombat and _G.Settings.SelectedMobs or _G.Settings.SelectedRocks
+
+                for _, v in pairs(workspace:GetDescendants()) do
+
+                    if (v:IsA("BasePart") or v:IsA("Model")) and table.find(currentList, v.Name) then
+
+                        table.insert(TargetCache, v)
+
+                    end
+
+                end
+
+                LastScan = tick()
+
+            end
+
+
+
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+
+            local nearest, minDist = nil, math.huge
+
+
+
+            for i = #TargetCache, 1, -1 do
+
+                local v = TargetCache[i]
+
+                if v and v.Parent then
+
+                    local part = v:IsA("Model") and (v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")) or v
+
+                    if part then
+
+                        local d = (hrp.Position - part.Position).Magnitude
+
+                        if d < minDist then minDist = d; nearest = part end
+
+                    end
+
+                else table.remove(TargetCache, i) end
+
+            end
+
+
+
+            if nearest then
+
+                -- Auto-Equip (Slot 1 per Rock, Slot 2 per Mobs)
+
+                local toolKey = _G.Settings.AutoCombat and Enum.KeyCode.Two or Enum.KeyCode.One
+
+                if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then
+
+                    VirtualInputManager:SendKeyEvent(true, toolKey, false, game)
+
+                    task.wait(0.1)
+
+                end
+
+
+
+                -- Movement
+
+                local offset = _G.Settings.Method == "above" and _G.Settings.Distance or -(_G.Settings.Distance + 2)
+
+                local targetCF = nearest.CFrame * CFrame.new(0, offset, 0)
+
+                
+
+                if (hrp.Position - targetCF.Position).Magnitude > 1.5 then
+
+                    hrp.CFrame = hrp.CFrame + ((targetCF.Position - hrp.Position).Unit * (_G.Settings.TweenSpeed / 60))
+
+                else 
+
+                    hrp.CFrame = CFrame.lookAt(targetCF.Position, nearest.Position) 
+
+                end
+
+                hrp.Velocity = Vector3.new(0,0,0)
+
+            end
+
+        end
+
+    end
+
+end)
+
+
+
+-- === UI (Amethyst Premium) ===
+
+local Theme = { Bg = Color3.fromRGB(15, 12, 20), Sidebar = Color3.fromRGB(22, 18, 30), Element = Color3.fromRGB(35, 28, 45), Accent = Color3.fromRGB(180, 100, 255), Text = Color3.fromRGB(255, 255, 255), SubText = Color3.fromRGB(180, 180, 180) }
+
+local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or game:GetService("CoreGui"))
+
+local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 520, 0, 400); Main.Position = UDim2.new(0.5, -260, 0.5, -200); Main.BackgroundColor3 = Theme.Bg; Main.BorderSizePixel = 0; Instance.new("UICorner", Main)
+
+Main.MouseEnter:Connect(function() MouseOnGui = true end); Main.MouseLeave:Connect(function() MouseOnGui = false end)
+
+
+
+local Sidebar = Instance.new("Frame", Main); Sidebar.Size = UDim2.new(0, 140, 1, 0); Sidebar.BackgroundColor3 = Theme.Sidebar; Instance.new("UICorner", Sidebar)
+
+MakeDraggable(Main, Sidebar)
+
+
+
+local Title = Instance.new("TextLabel", Sidebar); Title.Size = UDim2.new(1, 0, 0, 60); Title.Text = "BUBU HUB"; Title.Font = "GothamBold"; Title.TextColor3 = Theme.Accent; Title.TextSize = 20; Title.BackgroundTransparency = 1
+
+local TabButtons = Instance.new("Frame", Sidebar); TabButtons.Position = UDim2.new(0, 0, 0, 60); TabButtons.Size = UDim2.new(1, 0, 1, -60); TabButtons.BackgroundTransparency = 1; Instance.new("UIListLayout", TabButtons).Padding = UDim.new(0, 5); TabButtons.UIListLayout.HorizontalAlignment = "Center"
+
+local Pages = Instance.new("Frame", Main); Pages.Position = UDim2.new(0, 150, 0, 10); Pages.Size = UDim2.new(1, -160, 1, -20); Pages.BackgroundTransparency = 1
+
+
+
+local tabs = {}
+
+local function CreateTab(name)
+
+    local Page = Instance.new("ScrollingFrame", Pages); Page.Size = UDim2.new(1, 0, 1, 0); Page.BackgroundTransparency = 1; Page.Visible = false; Page.ScrollBarThickness = 2; Page.AutomaticCanvasSize = "Y"
+
+    Instance.new("UIListLayout", Page).Padding = UDim.new(0, 8)
+
+    local TabBtn = Instance.new("TextButton", TabButtons); TabBtn.Size = UDim2.new(0.9, 0, 0, 35); TabBtn.BackgroundColor3 = Theme.Element; TabBtn.Text = name; TabBtn.TextColor3 = Theme.SubText; TabBtn.Font = "GothamMedium"; TabBtn.TextSize = 13; Instance.new("UICorner", TabBtn)
+
+    TabBtn.MouseButton1Click:Connect(function()
+
+        for _, t in pairs(tabs) do t.P.Visible = false; t.B.BackgroundColor3 = Theme.Element; t.B.TextColor3 = Theme.SubText end
+
+        Page.Visible = true; TabBtn.BackgroundColor3 = Theme.Accent; TabBtn.TextColor3 = Theme.Bg
+
+    end)
+
+    table.insert(tabs, {P = Page, B = TabBtn}); return Page
+
+end
+
+
+
+-- === UI HELPERS ===
+
+local function AddToggle(parent, text, var)
+
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, -5, 0, 40); f.BackgroundColor3 = Theme.Element; Instance.new("UICorner", f)
+
+    local l = Instance.new("TextLabel", f); l.Text = "  "..text; l.Size = UDim2.new(1,0,1,0); l.TextColor3 = Theme.Text; l.Font = "GothamMedium"; l.TextSize = 13; l.TextXAlignment = "Left"; l.BackgroundTransparency = 1
+
+    local b = Instance.new("TextButton", f); b.Size = UDim2.new(0, 32, 0, 18); b.Position = UDim2.new(1, -42, 0.5, -9); b.BackgroundColor3 = Color3.fromRGB(60,60,70); b.Text = ""; Instance.new("UICorner", b).CornerRadius = UDim.new(1,0)
+
+    local dot = Instance.new("Frame", b); dot.Size = UDim2.new(0, 14, 0, 14); dot.Position = UDim2.new(0, 2, 0.5, -7); dot.BackgroundColor3 = Theme.Text; Instance.new("UICorner", dot)
+
+    b.MouseButton1Click:Connect(function() _G.Settings[var] = not _G.Settings[var]; dot:TweenPosition(_G.Settings[var] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), "Out", "Quad", 0.2); b.BackgroundColor3 = _G.Settings[var] and Theme.Accent or Color3.fromRGB(60,60,70) end)
+
+end
+
+
+
+local function AddDropdown(parent, text, opts, var)
+
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1,-5,0,45); f.BackgroundColor3 = Theme.Element; Instance.new("UICorner", f)
+
+    local l = Instance.new("TextLabel", f); l.Text = "  "..text; l.Size = UDim2.new(0.5,0,1,0); l.TextColor3 = Theme.Text; l.Font = "GothamBold"; l.TextSize = 13; l.TextXAlignment = "Left"; l.BackgroundTransparency = 1
+
+    local b = Instance.new("TextButton", f); b.Size = UDim2.new(0.4,0,0.7,0); b.Position = UDim2.new(0.55,0,0.15,0); b.Text = string.upper(_G.Settings[var]); b.BackgroundColor3 = Theme.Bg; b.TextColor3 = Theme.Accent; b.Font = "GothamBold"; b.TextSize = 14; Instance.new("UICorner", b)
+
+    b.MouseButton1Click:Connect(function() local cur = table.find(opts, _G.Settings[var]); _G.Settings[var] = opts[cur + 1] or opts[1]; b.Text = string.upper(_G.Settings[var]) end)
+
+end
+
+
+
+local function AddSlider(parent, text, min, max, def, var)
+
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, -5, 0, 50); f.BackgroundColor3 = Theme.Element; Instance.new("UICorner", f)
+
+    local l = Instance.new("TextLabel", f); l.Text = "  "..text.." : "..def; l.Size = UDim2.new(1,0,0,25); l.TextColor3 = Theme.Text; l.Font = "GothamMedium"; l.TextSize = 12; l.TextXAlignment = "Left"; l.BackgroundTransparency = 1
+
+    local bar = Instance.new("TextButton", f); bar.Size = UDim2.new(1, -20, 0, 6); bar.Position = UDim2.new(0, 10, 0, 35); bar.BackgroundColor3 = Color3.fromRGB(20,20,30); bar.Text = ""; Instance.new("UICorner", bar)
+
+    local fill = Instance.new("Frame", bar); fill.Size = UDim2.new((def-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = Theme.Accent; Instance.new("UICorner", fill)
+
+    local function Update(input) local pos = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1); fill.Size = UDim2.new(pos, 0, 1, 0); local val = math.floor(min + (max - min) * pos); l.Text = "  "..text.." : "..val; _G.Settings[var] = val end
+
+    bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then Update(input) local move; move = UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then Update(i) end end) local release; release = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect(); release:Disconnect() end end) end end)
+
+end
+
+
+
+local function AddSearchDrop(parent, text, opts, settingsVar)
+
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, -5, 0, 45); f.BackgroundColor3 = Theme.Element; f.ClipsDescendants = true; Instance.new("UICorner", f)
+
+    local b = Instance.new("TextButton", f); b.Size = UDim2.new(1, 0, 0, 45); b.Text = "  🔍 "..text; b.TextColor3 = Theme.Text; b.BackgroundTransparency = 1; b.TextXAlignment = "Left"; b.Font = "GothamBold"; b.TextSize = 13
+
+    local search = Instance.new("TextBox", f); search.Position = UDim2.new(0, 5, 0, 50); search.Size = UDim2.new(1, -10, 0, 25); search.PlaceholderText = "Search..."; search.BackgroundColor3 = Theme.Bg; search.TextColor3 = Theme.Text; search.Visible = false; Instance.new("UICorner", search)
+
+    local list = Instance.new("ScrollingFrame", f); list.Position = UDim2.new(0, 0, 0, 80); list.Size = UDim2.new(1, 0, 0, 150); list.Visible = false; list.BackgroundTransparency = 1; list.ScrollBarThickness = 2
+
+    local function populate(filter)
+
+        for _, c in pairs(list:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+
+        for _, o in pairs(opts) do if filter == "" or string.find(string.lower(o), string.lower(filter)) then
+
+            local ob = Instance.new("TextButton", list); ob.Size = UDim2.new(1, 0, 0, 30); ob.Text = o; ob.BackgroundColor3 = Theme.Element; ob.TextColor3 = table.find(_G.Settings[settingsVar], o) and Theme.Accent or Theme.SubText; ob.Font = "GothamBold"; ob.TextSize = 15
+
+            ob.MouseButton1Click:Connect(function() if table.find(_G.Settings[settingsVar], o) then table.remove(_G.Settings[settingsVar], table.find(_G.Settings[settingsVar], o)); ob.TextColor3 = Theme.SubText else table.insert(_G.Settings[settingsVar], o); ob.TextColor3 = Theme.Accent end end)
+
+        end end
+
+    end
+
+    search:GetPropertyChangedSignal("Text"):Connect(function() populate(search.Text) end)
+
+    b.MouseButton1Click:Connect(function() list.Visible = not list.Visible; search.Visible = list.Visible; f.Size = list.Visible and UDim2.new(1, -5, 0, 240) or UDim2.new(1, -5, 0, 45) if list.Visible then populate("") end end)
+
+    Instance.new("UIListLayout", list)
+
+end
+
+
+
+-- TABS
+
+local FarmTab = CreateTab("Autofarm")
+
+local CombatTab = CreateTab("Combat")
+
+
+
+-- PAGE 1: ROCKS
+
+AddToggle(FarmTab, "Enable Rock Farm", "AutoFarm")
+
+AddSearchDrop(FarmTab, "Select Rocks", {"Pebble", "Gold Ore", "Diamond", "Small Ice Crystal", "Medium Ice Crystal", "Large Ice Crystal", "Iron Ore", "Coal", "Ruby", "Emerald"}, "SelectedRocks")
+
+AddDropdown(FarmTab, "Position Mode", {"above", "below"}, "Method")
+
+AddSlider(FarmTab, "Fly Speed", 1, 150, 43, "TweenSpeed")
+
+AddSlider(FarmTab, "Distance", 1, 20, 5, "Distance")
+
+
+
+-- PAGE 2: MOBS
+
+AddToggle(CombatTab, "Enable Mob Farm", "AutoCombat")
+
+AddSearchDrop(CombatTab, "Select Mobs", {"Common Orc", "CrystalSpider", "Crystal Spider", "Yeti"}, "SelectedMobs")
+
+AddDropdown(CombatTab, "Position Mode", {"above", "below"}, "Method")
+
+AddSlider(CombatTab, "Fly Speed", 1, 150, 43, "TweenSpeed")
+
+AddSlider(CombatTab, "Distance", 1, 20, 5, "Distance")
+
+
+
+tabs[1].P.Visible = true; tabs[1].B.BackgroundColor3 = Theme.Accent; tabs[1].B.TextColor3 = Theme.Bg
+
+UserInputService.InputBegan:Connect(function(i) if i.KeyCode == Enum.KeyCode.RightShift then Main.Visible = not Main.Visible end end)
+
+RunService.Stepped:Connect(function() if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character then for _,v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end end end)
