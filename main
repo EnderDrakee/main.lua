@@ -1,4 +1,4 @@
--- Bubu Hub v41 (Final Polished Version with Search)
+-- Bubu Hub v41 (Final Version - True Top-Edge Watermark)
 
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -45,6 +45,41 @@ local Colors = {
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or game:GetService("CoreGui"))
 ScreenGui.Name = "BubuHubv41"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true -- Rimuove lo spazio della barra superiore di Roblox
+
+-- === PERMANENT WATERMARK (CENTER TOP - ZERO MARGIN) ===
+local WatermarkFrame = Instance.new("Frame", ScreenGui)
+WatermarkFrame.Size = UDim2.new(0, 240, 0, 28)
+WatermarkFrame.Position = UDim2.new(0.5, -120, 0, 0) -- Attaccato al limite fisico superiore
+WatermarkFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+WatermarkFrame.BackgroundTransparency = 0.15
+WatermarkFrame.BorderSizePixel = 0
+
+-- Arrotondiamo solo gli angoli inferiori per un look "docked"
+local Corner = Instance.new("UICorner", WatermarkFrame)
+Corner.CornerRadius = UDim.new(0, 6)
+
+local WatermarkStroke = Instance.new("UIStroke", WatermarkFrame)
+WatermarkStroke.Color = Colors.Accent
+WatermarkStroke.Thickness = 1.2
+WatermarkStroke.Transparency = 0.4
+
+local WatermarkText = Instance.new("TextLabel", WatermarkFrame)
+WatermarkText.Size = UDim2.new(1, 0, 1, 0)
+WatermarkText.BackgroundTransparency = 1
+WatermarkText.Text = "BUBU HUB | by Bubu Dev | 12:00 PM"
+WatermarkText.TextColor3 = Colors.Text
+WatermarkText.Font = Enum.Font.GothamBold
+WatermarkText.TextSize = 11
+WatermarkText.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Clock Update Logic (Senza secondi)
+task.spawn(function()
+    while true do
+        WatermarkText.Text = "BUBU HUB | by Bubu Dev | " .. os.date("%I:%M %p")
+        task.wait(30)
+    end
+end)
 
 -- Notification System
 local NotificationContainer = Instance.new("Frame", ScreenGui)
@@ -240,14 +275,23 @@ local function CreateDropdown(page, text, list, var)
     Icon.Font = Enum.Font.GothamBold
     Icon.TextSize = 18
 
-    -- Search Bar
+    local ValueDisplay = Instance.new("TextLabel", Btn)
+    ValueDisplay.Size = UDim2.new(0, 100, 1, 0)
+    ValueDisplay.Position = UDim2.new(1, -135, 0, 0)
+    ValueDisplay.BackgroundTransparency = 1
+    ValueDisplay.TextColor3 = Colors.Accent
+    ValueDisplay.Font = Enum.Font.GothamMedium
+    ValueDisplay.TextSize = 12
+    ValueDisplay.TextXAlignment = Enum.TextXAlignment.Right
+    ValueDisplay.Text = (type(_G.Settings[var]) == "string") and _G.Settings[var] or ""
+
     local SearchBar = Instance.new("TextBox", DropFrame)
     SearchBar.Name = "SearchBar"
     SearchBar.Size = UDim2.new(1, -20, 0, 25)
     SearchBar.Position = UDim2.new(0, 10, 0, 45)
     SearchBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     SearchBar.Text = ""
-    SearchBar.PlaceholderText = "Search..."
+    SearchBar.PlaceholderText = "Cerca..."
     SearchBar.TextColor3 = Colors.Text
     SearchBar.PlaceholderColor3 = Colors.TextDark
     SearchBar.Font = Enum.Font.Gotham
@@ -270,11 +314,19 @@ local function CreateDropdown(page, text, list, var)
     UIList.Padding = UDim.new(0, 2)
     UIList.SortOrder = Enum.SortOrder.LayoutOrder
 
+    local function UpdateColors()
+        for _, child in pairs(Scroll:GetChildren()) do
+            if child:IsA("TextButton") then
+                local isSelected = (type(_G.Settings[var]) == "table" and table.find(_G.Settings[var], child.Name)) or (_G.Settings[var] == child.Name)
+                child.BackgroundColor3 = isSelected and Colors.Accent or Color3.fromRGB(45, 45, 60)
+            end
+        end
+    end
+
     for _, item in pairs(list) do
         local b = Instance.new("TextButton", Scroll)
         b.Name = item
         b.Size = UDim2.new(1, -10, 0, 25)
-        b.BackgroundColor3 = table.find(_G.Settings[var], item) and Colors.Accent or Color3.fromRGB(45, 45, 60)
         b.Text = item
         b.TextColor3 = Colors.Text
         b.Font = Enum.Font.Gotham
@@ -282,26 +334,26 @@ local function CreateDropdown(page, text, list, var)
         Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
 
         b.MouseButton1Click:Connect(function()
-            if table.find(_G.Settings[var], item) then 
-                table.remove(_G.Settings[var], table.find(_G.Settings[var], item))
-                b.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-            else 
-                table.insert(_G.Settings[var], item)
-                b.BackgroundColor3 = Colors.Accent 
+            if type(_G.Settings[var]) == "table" then
+                if table.find(_G.Settings[var], item) then 
+                    table.remove(_G.Settings[var], table.find(_G.Settings[var], item))
+                else 
+                    table.insert(_G.Settings[var], item)
+                end
+            else
+                _G.Settings[var] = item
+                ValueDisplay.Text = item
             end
+            UpdateColors()
         end)
     end
+    UpdateColors()
 
-    -- Live Search Logic
     SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
         local input = string.lower(SearchBar.Text)
         for _, child in pairs(Scroll:GetChildren()) do
             if child:IsA("TextButton") then
-                if input == "" or string.find(string.lower(child.Name), input) then
-                    child.Visible = true
-                else
-                    child.Visible = false
-                end
+                child.Visible = (input == "" or string.find(string.lower(child.Name), input))
             end
         end
     end)
@@ -315,13 +367,11 @@ local function CreateDropdown(page, text, list, var)
 end
 
 -- === BUILD PAGES ===
-
--- 1. DASHBOARD
 local DashPage = CreateTab("Dashboard")
 SwitchTab("Dashboard")
 
 local WelcomeLabel = Instance.new("TextLabel", DashPage)
-WelcomeLabel.Size = UDim2.new(1, -10, 0, 40); WelcomeLabel.BackgroundTransparency = 1; WelcomeLabel.Text = "Welcome, " .. string.sub(LocalPlayer.Name, 1, 4) .. string.rep("*", #LocalPlayer.Name - 4)
+WelcomeLabel.Size = UDim2.new(1, -10, 0, 40); WelcomeLabel.BackgroundTransparency = 1; WelcomeLabel.Text = "Welcome, Bubu Dev"
 WelcomeLabel.TextColor3 = Colors.Text; WelcomeLabel.Font = Enum.Font.GothamBlack; WelcomeLabel.TextSize = 22; WelcomeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local StatsContainer = Instance.new("Frame", DashPage)
@@ -350,24 +400,24 @@ task.spawn(function()
     end
 end)
 
--- 2. FARMING
 local FarmPage = CreateTab("Farming")
 CreateSection(FarmPage, "ORE FARMING")
 CreateToggle(FarmPage, "Auto Farm Rocks", "AutoFarm")
 CreateDropdown(FarmPage, "Select Ores", {"Pebble", "Gold Ore", "Diamond", "Small Ice Crystal", "Medium Ice Crystal", "Large Ice Crystal", "Iron Ore", "Coal", "Ruby", "Emerald"}, "SelectedRocks")
 CreateSection(FarmPage, "SETTINGS")
+CreateDropdown(FarmPage, "Method", {"above", "below"}, "Method")
 CreateSlider(FarmPage, "Tween Speed", 1, 100, 43, "TweenSpeed")
 CreateSlider(FarmPage, "Distance", 1, 15, 5, "Distance")
 
--- 3. COMBAT
 local CombatPage = CreateTab("Combat")
 CreateSection(CombatPage, "MOB FARMING")
 CreateToggle(CombatPage, "Auto Combat", "AutoCombat")
 CreateDropdown(CombatPage, "Select Mobs", {"Common Orc", "CrystalSpider", "Crystal Spider", "Yeti"}, "SelectedMobs")
 CreateSection(CombatPage, "SETTINGS")
+CreateDropdown(CombatPage, "Method", {"above", "below"}, "Method")
 CreateSlider(CombatPage, "Tween Speed", 1, 100, 43, "TweenSpeed")
+CreateSlider(CombatPage, "Distance", 1, 15, 5, "Distance")
 
--- 4. MISC
 local MiscPage = CreateTab("Misc")
 CreateSection(MiscPage, "PLAYER MODS")
 CreateToggle(MiscPage, "Noclip", "Noclip")
@@ -378,7 +428,11 @@ CreateSection(MiscPage, "WORLD MODS")
 CreateToggle(MiscPage, "Full Bright", "FullBright")
 
 -- === KEYBIND & DRAG ===
-UserInputService.InputBegan:Connect(function(i) if i.KeyCode == Enum.KeyCode.RightShift then ScreenGui.Enabled = not ScreenGui.Enabled end end)
+UserInputService.InputBegan:Connect(function(i) 
+    if i.KeyCode == Enum.KeyCode.RightShift then 
+        MainFrame.Visible = not MainFrame.Visible 
+    end 
+end)
 
 local d, di, ds, sp
 MainFrame.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true; ds = i.Position; sp = MainFrame.Position i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then d = false end end) end end)
@@ -446,4 +500,4 @@ task.spawn(function()
     end
 end)
 
-print("Bubu Hub v41 Loaded with Search")
+print("Bubu Hub v41 Loaded with Pixel Perfect Top Watermark")
