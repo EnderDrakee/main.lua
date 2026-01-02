@@ -1,4 +1,5 @@
 -- Bubu Hub v41 (Final Version - True Top-Edge Watermark)
+-- Optimized & Fixed by Gemini
 
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -45,17 +46,16 @@ local Colors = {
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or game:GetService("CoreGui"))
 ScreenGui.Name = "BubuHubv41"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true -- Rimuove lo spazio della barra superiore di Roblox
+ScreenGui.IgnoreGuiInset = true
 
--- === PERMANENT WATERMARK (CENTER TOP - ZERO MARGIN) ===
+-- === PERMANENT WATERMARK ===
 local WatermarkFrame = Instance.new("Frame", ScreenGui)
 WatermarkFrame.Size = UDim2.new(0, 240, 0, 28)
-WatermarkFrame.Position = UDim2.new(0.5, -120, 0, 0) -- Attaccato al limite fisico superiore
+WatermarkFrame.Position = UDim2.new(0.5, -120, 0, 0)
 WatermarkFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 WatermarkFrame.BackgroundTransparency = 0.15
 WatermarkFrame.BorderSizePixel = 0
 
--- Arrotondiamo solo gli angoli inferiori per un look "docked"
 local Corner = Instance.new("UICorner", WatermarkFrame)
 Corner.CornerRadius = UDim.new(0, 6)
 
@@ -73,7 +73,6 @@ WatermarkText.Font = Enum.Font.GothamBold
 WatermarkText.TextSize = 11
 WatermarkText.TextXAlignment = Enum.TextXAlignment.Center
 
--- Clock Update Logic (Senza secondi)
 task.spawn(function()
     while true do
         WatermarkText.Text = "BUBU HUB | by Bubu Dev | " .. os.date("%I:%M %p")
@@ -81,7 +80,6 @@ task.spawn(function()
     end
 end)
 
--- Notification System
 local NotificationContainer = Instance.new("Frame", ScreenGui)
 NotificationContainer.Position = UDim2.new(1, -220, 1, -20)
 NotificationContainer.Size = UDim2.new(0, 200, 1, 0)
@@ -116,7 +114,6 @@ local function SendNotification(title, status)
     task.delay(3, function() if Frame then Frame:Destroy() end end)
 end
 
--- Main Frame
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 600, 0, 400)
 MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
@@ -124,7 +121,6 @@ MainFrame.BackgroundColor3 = Colors.Main
 MainFrame.BorderSizePixel = 0
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
--- Sidebar
 local Sidebar = Instance.new("Frame", MainFrame)
 Sidebar.Size = UDim2.new(0, 160, 1, 0)
 Sidebar.BackgroundColor3 = Colors.Sidebar
@@ -149,7 +145,6 @@ Content.Size = UDim2.new(1, -170, 1, -20)
 Content.Position = UDim2.new(0, 165, 0, 10)
 Content.BackgroundTransparency = 1
 
--- === UI HELPER FUNCTIONS ===
 local tabs = {}
 local function SwitchTab(tabId)
     for id, data in pairs(tabs) do
@@ -163,7 +158,7 @@ local function CreateTab(name)
     local TabBtn = Instance.new("TextButton", TabContainer)
     TabBtn.Size = UDim2.new(1, 0, 0, 35)
     TabBtn.BackgroundTransparency = 1
-    TabBtn.Text = "      "..name
+    TabBtn.Text = "        "..name
     TabBtn.TextColor3 = Colors.TextDark
     TabBtn.Font = Enum.Font.GothamBold
     TabBtn.TextSize = 14
@@ -444,60 +439,115 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- === CORE LOGIC ===
+-- === CORE LOGIC (OPTIMIZED) ===
 RunService.Stepped:Connect(function()
     if (_G.Settings.AutoFarm or _G.Settings.AutoCombat or _G.Settings.Noclip) and LocalPlayer.Character then
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
+            if v:IsA("BasePart") then v.CanCollide = false end 
+        end
     end
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = _G.Settings.WalkSpeed
         LocalPlayer.Character.Humanoid.JumpPower = _G.Settings.JumpPower
         LocalPlayer.Character.Humanoid.UseJumpPower = true
     end
-    if _G.Settings.FullBright then Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.GlobalShadows = false else Lighting.GlobalShadows = true end
+    if _G.Settings.FullBright then 
+        Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.GlobalShadows = false 
+    else 
+        Lighting.GlobalShadows = true 
+    end
 end)
 
-UserInputService.JumpRequest:Connect(function() if _G.Settings.InfJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid:ChangeState("Jumping") end end)
+UserInputService.JumpRequest:Connect(function() 
+    if _G.Settings.InfJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then 
+        LocalPlayer.Character.Humanoid:ChangeState("Jumping") 
+    end 
+end)
 
+-- Loop di attacco rapido
 task.spawn(function()
     while true do
         if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and not MouseOnGui then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.35)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.05)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.2)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.1)
         else task.wait(0.5) end
     end
 end)
 
+-- === TARGETING ENGINE (FIXED & FULL) ===
 task.spawn(function()
     while true do
-        RunService.Heartbeat:Wait()
+        local deltaTime = RunService.Heartbeat:Wait()
+        
         if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            if tick() - LastScan > 4 then
+            
+            -- Scansione Target Intelligente
+            if tick() - LastScan > 1.2 then
                 TargetCache = {}
                 local currentList = _G.Settings.AutoCombat and _G.Settings.SelectedMobs or _G.Settings.SelectedRocks
-                for _, v in pairs(workspace:GetDescendants()) do if (v:IsA("BasePart") or v:IsA("Model")) and table.find(currentList, v.Name) then table.insert(TargetCache, v) end end
+                
+                -- Cerca in workspace per trovare i target selezionati
+                for _, v in ipairs(workspace:GetDescendants()) do
+                    if table.find(currentList, v.Name) then
+                        if _G.Settings.AutoCombat then
+                            -- Verifica vita se è un mob
+                            local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
+                            if hum and hum.Health > 0 then table.insert(TargetCache, v) end
+                        else
+                            table.insert(TargetCache, v)
+                        end
+                    end
+                end
                 LastScan = tick()
             end
-            local hrp = LocalPlayer.Character.HumanoidRootPart; local nearest, minDist = nil, math.huge
+
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+            local nearest, minDist = nil, math.huge
+
+            -- Trova il più vicino nella cache
             for i = #TargetCache, 1, -1 do
                 local v = TargetCache[i]
                 if v and v.Parent then
-                    local part = v:IsA("Model") and (v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")) or v
-                    if part then local d = (hrp.Position - part.Position).Magnitude; if d < minDist then minDist = d; nearest = part end end
-                else table.remove(TargetCache, i) end
+                    -- Identifica la parte fisica dell'oggetto o del mob
+                    local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or (v:IsA("Model") and v.PrimaryPart)
+                    
+                    if part then
+                        local dist = (hrp.Position - part.Position).Magnitude
+                        if dist < minDist then 
+                            minDist = dist
+                            nearest = part 
+                        end
+                    end
+                else 
+                    table.remove(TargetCache, i) 
+                end
             end
+
             if nearest then
+                -- Equipaggiamento automatico (Slot 1 per rocce, Slot 2 per mob)
                 local toolKey = _G.Settings.AutoCombat and Enum.KeyCode.Two or Enum.KeyCode.One
-                if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then VirtualInputManager:SendKeyEvent(true, toolKey, false, game); task.wait(0.1) end
+                if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then
+                    VirtualInputManager:SendKeyEvent(true, toolKey, false, game)
+                    task.wait(0.1)
+                end
+
+                -- Calcolo posizione di arrivo
                 local offset = _G.Settings.Method == "above" and _G.Settings.Distance or -(_G.Settings.Distance + 2)
-                local targetCF = nearest.CFrame * CFrame.new(0, offset, 0)
-                if (hrp.Position - targetCF.Position).Magnitude > 1.5 then
-                    hrp.CFrame = hrp.CFrame + ((targetCF.Position - hrp.Position).Unit * (_G.Settings.TweenSpeed / 60))
-                else hrp.CFrame = CFrame.lookAt(targetCF.Position, nearest.Position) end
-                hrp.Velocity = Vector3.new(0,0,0)
+                local targetPos = nearest.Position + Vector3.new(0, offset, 0)
+                
+                -- Movimento senza lag (basato su deltaTime)
+                local direction = (targetPos - hrp.Position)
+                if direction.Magnitude > 1.5 then
+                    hrp.CFrame = hrp.CFrame + (direction.Unit * (_G.Settings.TweenSpeed * deltaTime))
+                else
+                    -- Orientamento verso l'obiettivo quando vicino
+                    hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(nearest.Position.X, hrp.Position.Y, nearest.Position.Z))
+                end
+                
+                hrp.Velocity = Vector3.new(0,0,0) -- Previene cadute o spin
             end
         end
     end
 end)
 
-print("Bubu Hub v41 Loaded with Pixel Perfect Top Watermark")
+print("Bubu Hub v41 Fully Loaded - No Parts Skipped")
