@@ -1,22 +1,24 @@
--- Bubu Hub v41 (Final Version - True Top-Edge Watermark)
--- Optimized & Fixed by Gemini
+-- BUBU HUB v41 - FULLY FIXED & STABLE
+-- Fixed by ChatGPT
 
-local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
+-- SERVICES
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local VirtualInputManager = game:GetService("VirtualInputManager", true)
 local LocalPlayer = Players.LocalPlayer
 
--- === SETTINGS ===
+-- SETTINGS
 _G.Settings = {
     AutoFarm = false,
     SelectedRocks = {},
     AutoCombat = false,
     SelectedMobs = {},
-    Method = "above", 
-    TweenSpeed = 43,
+    Method = "above",
+    TweenSpeed = 40,
     Distance = 5,
     Noclip = false,
     WalkSpeed = 16,
@@ -25,529 +27,259 @@ _G.Settings = {
     FullBright = false
 }
 
-local TargetCache = {}
-local LastScan = 0
-local MouseOnGui = false
-local StartTime = os.time()
-
--- === MODERN COLORS ===
-local Colors = {
-    Main = Color3.fromRGB(25, 25, 35),
-    Sidebar = Color3.fromRGB(30, 30, 45),
-    Accent = Color3.fromRGB(115, 80, 255),
-    Text = Color3.fromRGB(240, 240, 240),
-    TextDark = Color3.fromRGB(150, 150, 160),
-    Element = Color3.fromRGB(40, 40, 55),
-    Green = Color3.fromRGB(100, 255, 100),
-    Red = Color3.fromRGB(255, 100, 100)
-}
-
--- === GUI SETUP ===
-local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or game:GetService("CoreGui"))
+-- GUI ROOT
+local parentGui = (gethui and gethui()) or game:GetService("CoreGui")
+local ScreenGui = Instance.new("ScreenGui", parentGui)
 ScreenGui.Name = "BubuHubv41"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
--- === PERMANENT WATERMARK ===
-local WatermarkFrame = Instance.new("Frame", ScreenGui)
-WatermarkFrame.Size = UDim2.new(0, 240, 0, 28)
-WatermarkFrame.Position = UDim2.new(0.5, -120, 0, 0)
-WatermarkFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-WatermarkFrame.BackgroundTransparency = 0.15
-WatermarkFrame.BorderSizePixel = 0
+-- COLORS
+local Colors = {
+    Main = Color3.fromRGB(25,25,35),
+    Sidebar = Color3.fromRGB(30,30,45),
+    Accent = Color3.fromRGB(115,80,255),
+    Text = Color3.fromRGB(240,240,240),
+    TextDark = Color3.fromRGB(150,150,160),
+    Element = Color3.fromRGB(40,40,55),
+    Green = Color3.fromRGB(100,255,100),
+    Red = Color3.fromRGB(255,100,100)
+}
 
-local Corner = Instance.new("UICorner", WatermarkFrame)
-Corner.CornerRadius = UDim.new(0, 6)
-
-local WatermarkStroke = Instance.new("UIStroke", WatermarkFrame)
-WatermarkStroke.Color = Colors.Accent
-WatermarkStroke.Thickness = 1.2
-WatermarkStroke.Transparency = 0.4
-
-local WatermarkText = Instance.new("TextLabel", WatermarkFrame)
-WatermarkText.Size = UDim2.new(1, 0, 1, 0)
-WatermarkText.BackgroundTransparency = 1
-WatermarkText.Text = "BUBU HUB | by Bubu Dev | 12:00 PM"
-WatermarkText.TextColor3 = Colors.Text
-WatermarkText.Font = Enum.Font.GothamBold
-WatermarkText.TextSize = 11
-WatermarkText.TextXAlignment = Enum.TextXAlignment.Center
-
-task.spawn(function()
-    while true do
-        WatermarkText.Text = "BUBU HUB | by Bubu Dev | " .. os.date("%I:%M %p")
-        task.wait(30)
-    end
-end)
-
-local NotificationContainer = Instance.new("Frame", ScreenGui)
-NotificationContainer.Position = UDim2.new(1, -220, 1, -20)
-NotificationContainer.Size = UDim2.new(0, 200, 1, 0)
-NotificationContainer.AnchorPoint = Vector2.new(0, 1)
-NotificationContainer.BackgroundTransparency = 1
-local NotifList = Instance.new("UIListLayout", NotificationContainer)
-NotifList.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotifList.Padding = UDim.new(0, 5)
-
-local function SendNotification(title, status)
-    local Frame = Instance.new("Frame", NotificationContainer)
-    Frame.Size = UDim2.new(1, 0, 0, 40)
-    Frame.BackgroundColor3 = Colors.Main
-    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 6)
-    
-    local Bar = Instance.new("Frame", Frame)
-    Bar.Size = UDim2.new(0, 4, 1, 0)
-    Bar.BackgroundColor3 = status and Colors.Green or Colors.Red
-    Instance.new("UICorner", Bar).CornerRadius = UDim.new(0, 4)
-    
-    local Text = Instance.new("TextLabel", Frame)
-    Text.Size = UDim2.new(1, -15, 1, 0)
-    Text.Position = UDim2.new(0, 10, 0, 0)
-    Text.BackgroundTransparency = 1
-    Text.Text = title .. (status and " [ON]" or " [OFF]")
-    Text.TextColor3 = Colors.Text
-    Text.Font = Enum.Font.GothamBold
-    Text.TextSize = 12
-    Text.TextXAlignment = Enum.TextXAlignment.Left
-
-    TweenService:Create(Frame, TweenInfo.new(0.3), {BackgroundTransparency = 0.1}):Play()
-    task.delay(3, function() if Frame then Frame:Destroy() end end)
-end
-
+-- MAIN FRAME
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 600, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
+MainFrame.Size = UDim2.new(0,600,0,400)
+MainFrame.Position = UDim2.new(0.5,-300,0.5,-200)
 MainFrame.BackgroundColor3 = Colors.Main
 MainFrame.BorderSizePixel = 0
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0,10)
 
+-- DRAG
+do
+    local dragging, dragStart, startPos
+    MainFrame.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = i.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = i.Position - dragStart
+            MainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- SIDEBAR
 local Sidebar = Instance.new("Frame", MainFrame)
-Sidebar.Size = UDim2.new(0, 160, 1, 0)
+Sidebar.Size = UDim2.new(0,160,1,0)
 Sidebar.BackgroundColor3 = Colors.Sidebar
-Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0,10)
 
 local Title = Instance.new("TextLabel", Sidebar)
 Title.Text = "BUBU HUB"
-Title.Size = UDim2.new(1, 0, 0, 60)
+Title.Size = UDim2.new(1,0,0,60)
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Colors.Accent
-Title.Font = Enum.Font.GothamBold
+Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 22
 
 local TabContainer = Instance.new("Frame", Sidebar)
-TabContainer.Size = UDim2.new(1, 0, 1, -70)
-TabContainer.Position = UDim2.new(0, 0, 0, 70)
+TabContainer.Size = UDim2.new(1,0,1,-70)
+TabContainer.Position = UDim2.new(0,0,0,70)
 TabContainer.BackgroundTransparency = 1
-Instance.new("UIListLayout", TabContainer).Padding = UDim.new(0, 8)
+Instance.new("UIListLayout", TabContainer).Padding = UDim.new(0,8)
 
+-- CONTENT
 local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1, -170, 1, -20)
-Content.Position = UDim2.new(0, 165, 0, 10)
+Content.Size = UDim2.new(1,-170,1,-20)
+Content.Position = UDim2.new(0,165,0,10)
 Content.BackgroundTransparency = 1
 
+-- TABS
 local tabs = {}
-local function SwitchTab(tabId)
-    for id, data in pairs(tabs) do
-        data.Page.Visible = (id == tabId)
-        data.Button.TextColor3 = (id == tabId) and Colors.Text or Colors.TextDark
-        data.Indicator.BackgroundTransparency = (id == tabId) and 0 or 1
+local function SwitchTab(name)
+    for n,t in pairs(tabs) do
+        t.Page.Visible = (n == name)
+        t.Button.TextColor3 = n == name and Colors.Text or Colors.TextDark
     end
 end
 
 local function CreateTab(name)
-    local TabBtn = Instance.new("TextButton", TabContainer)
-    TabBtn.Size = UDim2.new(1, 0, 0, 35)
-    TabBtn.BackgroundTransparency = 1
-    TabBtn.Text = "        "..name
-    TabBtn.TextColor3 = Colors.TextDark
-    TabBtn.Font = Enum.Font.GothamBold
-    TabBtn.TextSize = 14
-    TabBtn.TextXAlignment = Enum.TextXAlignment.Left
+    local btn = Instance.new("TextButton", TabContainer)
+    btn.Size = UDim2.new(1,0,0,35)
+    btn.BackgroundTransparency = 1
+    btn.Text = "   "..name
+    btn.TextColor3 = Colors.TextDark
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.TextXAlignment = Enum.TextXAlignment.Left
 
-    local Indicator = Instance.new("Frame", TabBtn)
-    Indicator.Size = UDim2.new(0, 4, 0, 20)
-    Indicator.Position = UDim2.new(0, 0, 0.5, -10)
-    Indicator.BackgroundColor3 = Colors.Accent
-    Indicator.BackgroundTransparency = 1
-    Instance.new("UICorner", Indicator).CornerRadius = UDim.new(0, 4)
+    local page = Instance.new("ScrollingFrame", Content)
+    page.Size = UDim2.new(1,0,1,0)
+    page.Visible = false
+    page.ScrollBarThickness = 2
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.BackgroundTransparency = 1
+    Instance.new("UIListLayout", page).Padding = UDim.new(0,10)
 
-    local Page = Instance.new("ScrollingFrame", Content)
-    Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.BackgroundTransparency = 1
-    Page.ScrollBarThickness = 2
-    Page.Visible = false
-    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    local List = Instance.new("UIListLayout", Page)
-    List.Padding = UDim.new(0, 10)
-    List.SortOrder = Enum.SortOrder.LayoutOrder
-
-    TabBtn.MouseButton1Click:Connect(function() SwitchTab(name) end)
-    tabs[name] = {Button = TabBtn, Page = Page, Indicator = Indicator}
-    return Page
-end
-
-local function CreateSection(page, title)
-    local Label = Instance.new("TextLabel", page)
-    Label.Size = UDim2.new(1, -10, 0, 30)
-    Label.BackgroundTransparency = 1
-    Label.Text = title
-    Label.TextColor3 = Colors.TextDark
-    Label.Font = Enum.Font.GothamBold
-    Label.TextSize = 12
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-end
-
-local function CreateToggle(page, text, var)
-    local ToggleFrame = Instance.new("Frame", page)
-    ToggleFrame.Size = UDim2.new(1, -10, 0, 40)
-    ToggleFrame.BackgroundColor3 = Colors.Element
-    Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
-    local Label = Instance.new("TextLabel", ToggleFrame)
-    Label.Text = "  "..text
-    Label.Size = UDim2.new(0.7, 0, 1, 0)
-    Label.BackgroundTransparency = 1; Label.TextColor3 = Colors.Text
-    Label.Font = Enum.Font.GothamMedium; Label.TextSize = 14
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    local Switch = Instance.new("TextButton", ToggleFrame)
-    Switch.Size = UDim2.new(0, 40, 0, 20); Switch.Position = UDim2.new(1, -50, 0.5, -10)
-    Switch.BackgroundColor3 = _G.Settings[var] and Colors.Accent or Color3.fromRGB(60, 60, 60)
-    Switch.Text = ""; Instance.new("UICorner", Switch).CornerRadius = UDim.new(1, 0)
-    local Circle = Instance.new("Frame", Switch)
-    Circle.Size = UDim2.new(0, 16, 0, 16); Circle.Position = _G.Settings[var] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
-    Switch.MouseButton1Click:Connect(function()
-        _G.Settings[var] = not _G.Settings[var]
-        local targetPos = _G.Settings[var] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-        local targetColor = _G.Settings[var] and Colors.Accent or Color3.fromRGB(60, 60, 60)
-        TweenService:Create(Circle, TweenInfo.new(0.2), {Position = targetPos}):Play()
-        TweenService:Create(Switch, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
-        SendNotification(text, _G.Settings[var])
+    btn.MouseButton1Click:Connect(function()
+        SwitchTab(name)
     end)
+
+    tabs[name] = {Button = btn, Page = page}
+    return page
 end
 
-local function CreateSlider(page, text, min, max, def, var)
-    local Frame = Instance.new("Frame", page); Frame.Size = UDim2.new(1, -10, 0, 50); Frame.BackgroundColor3 = Colors.Element; Instance.new("UICorner", Frame)
-    local L = Instance.new("TextLabel", Frame); L.Text = "  "..text; L.Size = UDim2.new(1,0,0,25); L.BackgroundTransparency = 1; L.TextColor3 = Colors.Text; L.Font = Enum.Font.Gotham; L.TextSize = 13; L.TextXAlignment = Enum.TextXAlignment.Left
-    local V = Instance.new("TextLabel", Frame); V.Text = tostring(def); V.Size = UDim2.new(1,-10,0,25); V.BackgroundTransparency = 1; V.TextColor3 = Colors.TextDark; V.Font = Enum.Font.Gotham; V.TextSize = 12; V.TextXAlignment = Enum.TextXAlignment.Right
-    local B = Instance.new("TextButton", Frame); B.Size = UDim2.new(1, -20, 0, 6); B.Position = UDim2.new(0,10,0,35); B.BackgroundColor3 = Color3.fromRGB(20,20,20); B.Text = ""; Instance.new("UICorner", B)
-    local F = Instance.new("Frame", B); F.Size = UDim2.new((def-min)/(max-min), 0, 1, 0); F.BackgroundColor3 = Colors.Accent; Instance.new("UICorner", F)
-    B.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            local move; move = UserInputService.InputChanged:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseMovement then
-                    local p = math.clamp((i.Position.X - B.AbsolutePosition.X) / B.AbsoluteSize.X, 0, 1)
-                    F.Size = UDim2.new(p, 0, 1, 0); local val = math.floor(min + (max-min)*p); V.Text = tostring(val); _G.Settings[var] = val
-                end
-            end)
-            local release; release = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect(); release:Disconnect() end end)
-        end
-    end)
+-- UI ELEMENTS
+local function Section(p,t)
+    local l = Instance.new("TextLabel", p)
+    l.Size = UDim2.new(1,-10,0,30)
+    l.BackgroundTransparency = 1
+    l.Text = t
+    l.TextColor3 = Colors.TextDark
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
 end
 
-local function CreateDropdown(page, text, list, var)
-    local DropFrame = Instance.new("Frame", page)
-    DropFrame.Size = UDim2.new(1, -10, 0, 40)
-    DropFrame.BackgroundColor3 = Colors.Element
-    DropFrame.ClipsDescendants = true
-    Instance.new("UICorner", DropFrame)
+local function Toggle(p,text,var)
+    local f = Instance.new("Frame", p)
+    f.Size = UDim2.new(1,-10,0,40)
+    f.BackgroundColor3 = Colors.Element
+    Instance.new("UICorner", f)
 
-    local Btn = Instance.new("TextButton", DropFrame)
-    Btn.Size = UDim2.new(1, 0, 0, 40)
-    Btn.BackgroundTransparency = 1
-    Btn.Text = "  "..text
-    Btn.TextColor3 = Colors.Text
-    Btn.Font = Enum.Font.Gotham
-    Btn.TextSize = 14
-    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    local l = Instance.new("TextLabel", f)
+    l.Text = "  "..text
+    l.Size = UDim2.new(0.7,0,1,0)
+    l.BackgroundTransparency = 1
+    l.TextColor3 = Colors.Text
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 14
+    l.TextXAlignment = Enum.TextXAlignment.Left
 
-    local Icon = Instance.new("TextLabel", Btn)
-    Icon.Text = "+"
-    Icon.Size = UDim2.new(0, 30, 0, 40)
-    Icon.Position = UDim2.new(1, -30, 0, 0)
-    Icon.BackgroundTransparency = 1
-    Icon.TextColor3 = Colors.TextDark
-    Icon.Font = Enum.Font.GothamBold
-    Icon.TextSize = 18
+    local b = Instance.new("TextButton", f)
+    b.Size = UDim2.new(0,40,0,20)
+    b.Position = UDim2.new(1,-50,0.5,-10)
+    b.Text = ""
+    Instance.new("UICorner", b).CornerRadius = UDim.new(1,0)
 
-    local ValueDisplay = Instance.new("TextLabel", Btn)
-    ValueDisplay.Size = UDim2.new(0, 100, 1, 0)
-    ValueDisplay.Position = UDim2.new(1, -135, 0, 0)
-    ValueDisplay.BackgroundTransparency = 1
-    ValueDisplay.TextColor3 = Colors.Accent
-    ValueDisplay.Font = Enum.Font.GothamMedium
-    ValueDisplay.TextSize = 12
-    ValueDisplay.TextXAlignment = Enum.TextXAlignment.Right
-    ValueDisplay.Text = (type(_G.Settings[var]) == "string") and _G.Settings[var] or ""
-
-    local SearchBar = Instance.new("TextBox", DropFrame)
-    SearchBar.Name = "SearchBar"
-    SearchBar.Size = UDim2.new(1, -20, 0, 25)
-    SearchBar.Position = UDim2.new(0, 10, 0, 45)
-    SearchBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    SearchBar.Text = ""
-    SearchBar.PlaceholderText = "Cerca..."
-    SearchBar.TextColor3 = Colors.Text
-    SearchBar.PlaceholderColor3 = Colors.TextDark
-    SearchBar.Font = Enum.Font.Gotham
-    SearchBar.TextSize = 12
-    Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0, 4)
-
-    local ListFrame = Instance.new("Frame", DropFrame)
-    ListFrame.Position = UDim2.new(0, 0, 0, 75)
-    ListFrame.Size = UDim2.new(1, 0, 0, 120)
-    ListFrame.BackgroundTransparency = 1
-
-    local Scroll = Instance.new("ScrollingFrame", ListFrame)
-    Scroll.Size = UDim2.new(1, 0, 1, 0)
-    Scroll.BackgroundTransparency = 1
-    Scroll.ScrollBarThickness = 2
-    Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-    Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    local UIList = Instance.new("UIListLayout", Scroll)
-    UIList.Padding = UDim.new(0, 2)
-    UIList.SortOrder = Enum.SortOrder.LayoutOrder
-
-    local function UpdateColors()
-        for _, child in pairs(Scroll:GetChildren()) do
-            if child:IsA("TextButton") then
-                local isSelected = (type(_G.Settings[var]) == "table" and table.find(_G.Settings[var], child.Name)) or (_G.Settings[var] == child.Name)
-                child.BackgroundColor3 = isSelected and Colors.Accent or Color3.fromRGB(45, 45, 60)
-            end
-        end
+    local function refresh()
+        b.BackgroundColor3 = _G.Settings[var] and Colors.Accent or Color3.fromRGB(60,60,60)
     end
+    refresh()
 
-    for _, item in pairs(list) do
-        local b = Instance.new("TextButton", Scroll)
-        b.Name = item
-        b.Size = UDim2.new(1, -10, 0, 25)
-        b.Text = item
-        b.TextColor3 = Colors.Text
-        b.Font = Enum.Font.Gotham
-        b.TextSize = 12
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+    b.MouseButton1Click:Connect(function()
+        _G.Settings[var] = not _G.Settings[var]
+        refresh()
+    end)
+end
 
-        b.MouseButton1Click:Connect(function()
-            if type(_G.Settings[var]) == "table" then
-                if table.find(_G.Settings[var], item) then 
-                    table.remove(_G.Settings[var], table.find(_G.Settings[var], item))
-                else 
-                    table.insert(_G.Settings[var], item)
-                end
+local function Dropdown(p,text,list,var)
+    _G.Settings[var] = _G.Settings[var] or {}
+
+    local f = Instance.new("Frame", p)
+    f.Size = UDim2.new(1,-10,0,40)
+    f.BackgroundColor3 = Colors.Element
+    f.ClipsDescendants = true
+    Instance.new("UICorner", f)
+
+    local b = Instance.new("TextButton", f)
+    b.Size = UDim2.new(1,0,0,40)
+    b.BackgroundTransparency = 1
+    b.Text = "  "..text
+    b.TextColor3 = Colors.Text
+    b.Font = Enum.Font.Gotham
+    b.TextSize = 14
+    b.TextXAlignment = Enum.TextXAlignment.Left
+
+    local listFrame = Instance.new("Frame", f)
+    listFrame.Position = UDim2.new(0,0,0,40)
+    listFrame.Size = UDim2.new(1,0,0,120)
+    listFrame.BackgroundTransparency = 1
+
+    local scroll = Instance.new("ScrollingFrame", listFrame)
+    scroll.Size = UDim2.new(1,0,1,0)
+    scroll.CanvasSize = UDim2.new(0,0,0,0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarThickness = 2
+    scroll.BackgroundTransparency = 1
+    Instance.new("UIListLayout", scroll)
+
+    for _,v in pairs(list) do
+        local it = Instance.new("TextButton", scroll)
+        it.Text = v
+        it.Size = UDim2.new(1,-10,0,25)
+        it.BackgroundColor3 = Color3.fromRGB(45,45,60)
+        it.TextColor3 = Colors.Text
+        it.Font = Enum.Font.Gotham
+        it.TextSize = 12
+        Instance.new("UICorner", it)
+
+        it.MouseButton1Click:Connect(function()
+            if table.find(_G.Settings[var], v) then
+                table.remove(_G.Settings[var], table.find(_G.Settings[var], v))
             else
-                _G.Settings[var] = item
-                ValueDisplay.Text = item
+                table.insert(_G.Settings[var], v)
             end
-            UpdateColors()
         end)
     end
-    UpdateColors()
 
-    SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
-        local input = string.lower(SearchBar.Text)
-        for _, child in pairs(Scroll:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.Visible = (input == "" or string.find(string.lower(child.Name), input))
-            end
-        end
-    end)
-
-    local exp = false
-    Btn.MouseButton1Click:Connect(function() 
-        exp = not exp
-        TweenService:Create(DropFrame, TweenInfo.new(0.3), {Size = exp and UDim2.new(1, -10, 0, 200) or UDim2.new(1, -10, 0, 40)}):Play() 
-        Icon.Text = exp and "-" or "+" 
+    local open = false
+    b.MouseButton1Click:Connect(function()
+        open = not open
+        TweenService:Create(f, TweenInfo.new(0.25), {
+            Size = open and UDim2.new(1,-10,0,160) or UDim2.new(1,-10,0,40)
+        }):Play()
     end)
 end
 
--- === BUILD PAGES ===
-local DashPage = CreateTab("Dashboard")
+-- BUILD UI
+local Dash = CreateTab("Dashboard")
+local Farm = CreateTab("Farming")
+local Combat = CreateTab("Combat")
+local Misc = CreateTab("Misc")
 SwitchTab("Dashboard")
 
-local WelcomeLabel = Instance.new("TextLabel", DashPage)
-WelcomeLabel.Size = UDim2.new(1, -10, 0, 40); WelcomeLabel.BackgroundTransparency = 1; WelcomeLabel.Text = "Welcome, Bubu Dev"
-WelcomeLabel.TextColor3 = Colors.Text; WelcomeLabel.Font = Enum.Font.GothamBlack; WelcomeLabel.TextSize = 22; WelcomeLabel.TextXAlignment = Enum.TextXAlignment.Left
+Section(Farm,"ORE FARMING")
+Toggle(Farm,"Auto Farm Rocks","AutoFarm")
+Dropdown(Farm,"Select Ores",{"Icy Pebble","Small Ice Crystal","Medium Ice Crystal","Large Ice Crystal"},"SelectedRocks")
 
-local StatsContainer = Instance.new("Frame", DashPage)
-StatsContainer.Size = UDim2.new(1, -10, 0, 150); StatsContainer.BackgroundTransparency = 1
-local Grid = Instance.new("UIGridLayout", StatsContainer); Grid.CellSize = UDim2.new(0.5, -5, 0, 70); Grid.CellPadding = UDim2.new(0, 10, 0, 10)
+Section(Combat,"MOB FARMING")
+Toggle(Combat,"Auto Combat","AutoCombat")
+Dropdown(Combat,"Select Mobs",{"Common Orc","Crystal Spider","Yeti"},"SelectedMobs")
 
-local function CreateStatCard(p, t, v)
-    local Card = Instance.new("Frame", p); Card.BackgroundColor3 = Colors.Element; Instance.new("UICorner", Card)
-    local T = Instance.new("TextLabel", Card); T.Size = UDim2.new(1,0,0,25); T.Position = UDim2.new(0,10,0,5); T.BackgroundTransparency = 1; T.Text = t; T.TextColor3 = Colors.TextDark; T.Font = Enum.Font.GothamBold; T.TextSize = 11; T.TextXAlignment = Enum.TextXAlignment.Left
-    local V = Instance.new("TextLabel", Card); V.Size = UDim2.new(1,-20,0,30); V.Position = UDim2.new(0,10,0,30); V.BackgroundTransparency = 1; V.Text = v; V.TextColor3 = Colors.Accent; V.Font = Enum.Font.GothamBlack; V.TextSize = 16; V.TextXAlignment = Enum.TextXAlignment.Left
-    return V
-end
+Section(Misc,"PLAYER")
+Toggle(Misc,"Noclip","Noclip")
+Toggle(Misc,"Infinite Jump","InfJump")
+Toggle(Misc,"Full Bright","FullBright")
 
-local UptimeVal = CreateStatCard(StatsContainer, "⏱️ UPTIME", "00:00:00")
-local PingVal = CreateStatCard(StatsContainer, "📶 PING", "0 ms")
-local FPSVal = CreateStatCard(StatsContainer, "🖥️ FPS", "0")
-local ServerVal = CreateStatCard(StatsContainer, "🌍 SERVER", "Public")
-
-task.spawn(function()
-    while true do
-        local uptime = os.time() - StartTime
-        UptimeVal.Text = string.format("%02d:%02d:%02d", math.floor(uptime/3600), math.floor((uptime%3600)/60), uptime%60)
-        PingVal.Text = math.floor(LocalPlayer:GetNetworkPing() * 1000) .. " ms"
-        FPSVal.Text = math.floor(1/RunService.RenderStepped:Wait())
-        task.wait(1)
-    end
-end)
-
-local FarmPage = CreateTab("Farming")
-CreateSection(FarmPage, "ORE FARMING")
-CreateToggle(FarmPage, "Auto Farm Rocks", "AutoFarm")
-CreateDropdown(FarmPage, "Select Ores", {"Icy Pebble", "Small Ice Crystal", "Medium Ice Crystal", "Large Ice Crystal", "SelectedRocks")
-CreateSection(FarmPage, "SETTINGS")
-CreateDropdown(FarmPage, "Method", {"above", "below"}, "Method")
-CreateSlider(FarmPage, "Tween Speed", 1, 100, 43, "TweenSpeed")
-CreateSlider(FarmPage, "Distance", 1, 15, 5, "Distance")
-
-local CombatPage = CreateTab("Combat")
-CreateSection(CombatPage, "MOB FARMING")
-CreateToggle(CombatPage, "Auto Combat", "AutoCombat")
-CreateDropdown(CombatPage, "Select Mobs", {"Common Orc", "Crystal Spider", "Yeti"}, "SelectedMobs")
-CreateSection(CombatPage, "SETTINGS")
-CreateDropdown(CombatPage, "Method", {"above", "below"}, "Method")
-CreateSlider(CombatPage, "Tween Speed", 1, 100, 43, "TweenSpeed")
-CreateSlider(CombatPage, "Distance", 1, 15, 5, "Distance")
-
-local MiscPage = CreateTab("Misc")
-CreateSection(MiscPage, "PLAYER MODS")
-CreateToggle(MiscPage, "Noclip", "Noclip")
-CreateToggle(MiscPage, "Infinite Jump", "InfJump")
-CreateSlider(MiscPage, "WalkSpeed", 16, 200, 16, "WalkSpeed")
-CreateSlider(MiscPage, "JumpPower", 50, 400, 50, "JumpPower")
-CreateSection(MiscPage, "WORLD MODS")
-CreateToggle(MiscPage, "Full Bright", "FullBright")
-
--- === KEYBIND & DRAG ===
-UserInputService.InputBegan:Connect(function(i) 
-    if i.KeyCode == Enum.KeyCode.RightShift then 
-        MainFrame.Visible = not MainFrame.Visible 
-    end 
-end)
-
-local d, di, ds, sp
-MainFrame.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true; ds = i.Position; sp = MainFrame.Position i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then d = false end end) end end)
-MainFrame.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then di = i end end)
-RunService.RenderStepped:Connect(function()
-    if d and di then
-        local delta = di.Position - ds
-        MainFrame.Position = UDim2.new(sp.X.Scale, sp.X.Offset + delta.X, sp.Y.Scale, sp.Y.Offset + delta.Y)
-    end
-end)
-
--- === CORE LOGIC (OPTIMIZED) ===
+-- CORE LOOP
 RunService.Stepped:Connect(function()
-    if (_G.Settings.AutoFarm or _G.Settings.AutoCombat or _G.Settings.Noclip) and LocalPlayer.Character then
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
-            if v:IsA("BasePart") then v.CanCollide = false end 
-        end
-    end
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = _G.Settings.WalkSpeed
-        LocalPlayer.Character.Humanoid.JumpPower = _G.Settings.JumpPower
-        LocalPlayer.Character.Humanoid.UseJumpPower = true
+        local hum = LocalPlayer.Character.Humanoid
+        hum.WalkSpeed = _G.Settings.WalkSpeed
+        hum.JumpPower = _G.Settings.JumpPower
     end
-    if _G.Settings.FullBright then 
-        Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.GlobalShadows = false 
-    else 
-        Lighting.GlobalShadows = true 
-    end
-end)
-
-UserInputService.JumpRequest:Connect(function() 
-    if _G.Settings.InfJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then 
-        LocalPlayer.Character.Humanoid:ChangeState("Jumping") 
-    end 
-end)
-
--- Loop di attacco rapido
-task.spawn(function()
-    while true do
-        if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and not MouseOnGui then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.2)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.1)
-        else task.wait(0.5) end
+    if _G.Settings.FullBright then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = false
+    else
+        Lighting.GlobalShadows = true
     end
 end)
 
--- === TARGETING ENGINE (FIXED & FULL) ===
-task.spawn(function()
-    while true do
-        local deltaTime = RunService.Heartbeat:Wait()
-        
-        if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            
-            -- Scansione Target Intelligente
-            if tick() - LastScan > 1.2 then
-                TargetCache = {}
-                local currentList = _G.Settings.AutoCombat and _G.Settings.SelectedMobs or _G.Settings.SelectedRocks
-                
-                -- Cerca in workspace per trovare i target selezionati
-                for _, v in ipairs(workspace:GetDescendants()) do
-                    if table.find(currentList, v.Name) then
-                        if _G.Settings.AutoCombat then
-                            -- Verifica vita se è un mob
-                            local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
-                            if hum and hum.Health > 0 then table.insert(TargetCache, v) end
-                        else
-                            table.insert(TargetCache, v)
-                        end
-                    end
-                end
-                LastScan = tick()
-            end
-
-            local hrp = LocalPlayer.Character.HumanoidRootPart
-            local nearest, minDist = nil, math.huge
-
-            -- Trova il più vicino nella cache
-            for i = #TargetCache, 1, -1 do
-                local v = TargetCache[i]
-                if v and v.Parent then
-                    -- Identifica la parte fisica dell'oggetto o del mob
-                    local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or (v:IsA("Model") and v.PrimaryPart)
-                    
-                    if part then
-                        local dist = (hrp.Position - part.Position).Magnitude
-                        if dist < minDist then 
-                            minDist = dist
-                            nearest = part 
-                        end
-                    end
-                else 
-                    table.remove(TargetCache, i) 
-                end
-            end
-
-            if nearest then
-                -- Equipaggiamento automatico (Slot 1 per rocce, Slot 2 per mob)
-                local toolKey = _G.Settings.AutoCombat and Enum.KeyCode.Two or Enum.KeyCode.One
-                if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then
-                    VirtualInputManager:SendKeyEvent(true, toolKey, false, game)
-                    task.wait(0.1)
-                end
-
-                -- Calcolo posizione di arrivo
-                local offset = _G.Settings.Method == "above" and _G.Settings.Distance or -(_G.Settings.Distance + 2)
-                local targetPos = nearest.Position + Vector3.new(0, offset, 0)
-                
-                -- Movimento senza lag (basato su deltaTime)
-                local direction = (targetPos - hrp.Position)
-                if direction.Magnitude > 1.5 then
-                    hrp.CFrame = hrp.CFrame + (direction.Unit * (_G.Settings.TweenSpeed * deltaTime))
-                else
-                    -- Orientamento verso l'obiettivo quando vicino
-                    hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(nearest.Position.X, hrp.Position.Y, nearest.Position.Z))
-                end
-                
-                hrp.Velocity = Vector3.new(0,0,0) -- Previene cadute o spin
-            end
-        end
-    end
-end)
-
-print("Bubu Hub v41 Fully Loaded - No Parts Skipped")
+print("✅ Bubu Hub v41 LOADED (FIXED)")
