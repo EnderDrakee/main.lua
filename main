@@ -25,7 +25,8 @@ _G.Settings = {
     FullBright = false
 }
 
-local TargetCache = {}
+local TargetCacheRocks = {}
+local TargetCacheMobs = {}
 local LastScan = 0
 local MouseOnGui = false
 local StartTime = os.time()
@@ -474,26 +475,25 @@ task.spawn(function()
     end
 end)
 
--- === TARGETING ENGINE (FIXED & FULL) ===
+-- === TARGETING ENGINE (REWRITTEN FOR ROCKS) ===
 task.spawn(function()
     while true do
         local deltaTime = RunService.Heartbeat:Wait()
         
         if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             
-            -- Scansione Target Intelligente
+            -- SCANSIONE DIVISA
             if tick() - LastScan > 1.2 then
-                TargetCache = {}
-                local currentList = _G.Settings.AutoCombat and _G.Settings.SelectedMobs or _G.Settings.SelectedRocks
+                TargetCacheRocks = {}
+                TargetCacheMobs = {}
                 
                 for _, v in ipairs(workspace:GetDescendants()) do
-                    if table.find(currentList, v.Name) then
-                        if _G.Settings.AutoCombat then
-                            local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
-                            if hum and hum.Health > 0 then table.insert(TargetCache, v) end
-                        else
-                            table.insert(TargetCache, v)
-                        end
+                    if _G.Settings.AutoFarm and table.find(_G.Settings.SelectedRocks, v.Name) then
+                        table.insert(TargetCacheRocks, v)
+                    end
+                    if _G.Settings.AutoCombat and table.find(_G.Settings.SelectedMobs, v.Name) then
+                        local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
+                        if hum and hum.Health > 0 then table.insert(TargetCacheMobs, v) end
                     end
                 end
                 LastScan = tick()
@@ -501,48 +501,59 @@ task.spawn(function()
 
             local hrp = LocalPlayer.Character.HumanoidRootPart
             local nearest, minDist = nil, math.huge
+            
+            -- Priorità Mobs, poi Rocks
+            local activeCache = (_G.Settings.AutoCombat and #TargetCacheMobs > 0) and TargetCacheMobs or TargetCacheRocks
+            local isMining = (activeCache == TargetCacheRocks)
 
-            for i = #TargetCache, 1, -1 do
-                local v = TargetCache[i]
+            for i = #activeCache, 1, -1 do
+                local v = activeCache[i]
                 if v and v.Parent then
+                    if not isMining then -- Logica Mobs (Salute)
+                        local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
+                        if not hum or hum.Health <= 0 then table.remove(activeCache, i) continue end
+                    end
+
                     local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or (v:IsA("Model") and v.PrimaryPart)
                     if part then
                         local dist = (hrp.Position - part.Position).Magnitude
-                        if dist < minDist then 
-                            minDist = dist
-                            nearest = part 
-                        end
+                        if dist < minDist then minDist = dist nearest = part end
                     end
                 else 
-                    table.remove(TargetCache, i) 
+                    table.remove(activeCache, i) 
                 end
             end
 
             if nearest then
-                -- Equipaggiamento automatico
-                local toolKey = _G.Settings.AutoCombat and Enum.KeyCode.Two or Enum.KeyCode.One
+                local toolKey = (not isMining) and Enum.KeyCode.Two or Enum.KeyCode.One
                 if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then
                     VirtualInputManager:SendKeyEvent(true, toolKey, false, game)
                     task.wait(0.1)
                 end
 
-                -- Calcolo posizione
                 local offset = _G.Settings.Method == "above" and _G.Settings.Distance or -(_G.Settings.Distance + 2)
                 local targetPos = nearest.Position + Vector3.new(0, offset, 0)
                 
-                -- Movimento
-                local direction = (targetPos - hrp.Position)
-                if direction.Magnitude > 1 then
-                    hrp.CFrame = hrp.CFrame + (direction.Unit * (_G.Settings.TweenSpeed * deltaTime))
+                -- LOGICA DI AGGANCIO (FIX)
+                local distanceToTarget = (targetPos - hrp.Position).Magnitude
+                
+                if distanceToTarget > 1.5 then
+                    -- Raggiungi la roccia
+                    local direction = (targetPos - hrp.Position).Unit
+                    hrp.CFrame = hrp.CFrame + (direction * (_G.Settings.TweenSpeed * deltaTime))
+                else
+                    -- AGGANCIO: Sei arrivato, rimani fermo sopra/sotto e guarda l'oggetto
+                    hrp.Velocity = Vector3.new(0,0,0)
+                    -- Mantiene solo la posizione target ignorando piccoli delta
+                    hrp.CFrame = CFrame.new(targetPos) 
                 end
                 
-                -- PUNTA SEMPRE VERSO L'OGGETTO (MIRA FISSA)
-                hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(nearest.Position.X, nearest.Position.Y, nearest.Position.Z))
-                
+                -- Mira fissa sull'oggetto (fondamentale per non mancare i colpi)
+                hrp.CFrame = CFrame.lookAt(hrp.Position, nearest.Position)
                 hrp.Velocity = Vector3.new(0,0,0)
             end
         end
     end
 end)
 
-print("Bubu Hub v41 Fully Loaded - Aim Correction Applied")
+print("Bubu Hub v41 - Precision Rock Farming & Static Lock Applied")
