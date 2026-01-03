@@ -1,5 +1,5 @@
--- Bubu Hub v41 (Final Version - True Top-Edge Watermark)
--- Optimized & Fixed by Gemini
+-- Bubu Hub v41 (Final Version - Below Method & Stability Fix)
+-- Optimized by Gemini
 
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -27,6 +27,7 @@ _G.Settings = {
 
 local TargetCacheRocks = {}
 local TargetCacheMobs = {}
+local CurrentNearestTarget = nil 
 local LastScan = 0
 local MouseOnGui = false
 local StartTime = os.time()
@@ -49,7 +50,6 @@ ScreenGui.Name = "BubuHubv41"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 
--- === PERMANENT WATERMARK ===
 local WatermarkFrame = Instance.new("Frame", ScreenGui)
 WatermarkFrame.Size = UDim2.new(0, 240, 0, 28)
 WatermarkFrame.Position = UDim2.new(0.5, -120, 0, 0)
@@ -440,7 +440,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- === CORE LOGIC (OPTIMIZED) ===
+-- === CORE LOGIC ===
 RunService.Stepped:Connect(function()
     if (_G.Settings.AutoFarm or _G.Settings.AutoCombat or _G.Settings.Noclip) and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
@@ -469,20 +469,35 @@ end)
 task.spawn(function()
     while true do
         if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and not MouseOnGui then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.2)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.1)
-        else task.wait(0.5) end
+            local canHit = false
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and CurrentNearestTarget then
+                local dist = (LocalPlayer.Character.HumanoidRootPart.Position - CurrentNearestTarget.Position).Magnitude
+                if dist <= (_G.Settings.Distance + 4) then
+                    canHit = true
+                end
+            end
+
+            if canHit then
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.1)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0); task.wait(0.1)
+            else
+                task.wait(0.2)
+            end
+        else 
+            CurrentNearestTarget = nil
+            task.wait(0.5) 
+        end
     end
 end)
 
--- === TARGETING ENGINE (REWRITTEN FOR ROCKS) ===
+-- === TARGETING ENGINE (ULTRA-STABLE & FIXED BELOW METHOD) ===
 task.spawn(function()
     while true do
         local deltaTime = RunService.Heartbeat:Wait()
         
         if (_G.Settings.AutoFarm or _G.Settings.AutoCombat) and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             
-            -- SCANSIONE DIVISA
+            -- SCANSIONE PERIODICA TARGET
             if tick() - LastScan > 1.2 then
                 TargetCacheRocks = {}
                 TargetCacheMobs = {}
@@ -501,23 +516,18 @@ task.spawn(function()
 
             local hrp = LocalPlayer.Character.HumanoidRootPart
             local nearest, minDist = nil, math.huge
-            
-            -- Priorità Mobs, poi Rocks
             local activeCache = (_G.Settings.AutoCombat and #TargetCacheMobs > 0) and TargetCacheMobs or TargetCacheRocks
-            local isMining = (activeCache == TargetCacheRocks)
 
             for i = #activeCache, 1, -1 do
                 local v = activeCache[i]
                 if v and v.Parent then
-                    if not isMining then -- Logica Mobs (Salute)
-                        local hum = v:FindFirstChild("Humanoid") or (v.Parent and v.Parent:FindFirstChild("Humanoid"))
-                        if not hum or hum.Health <= 0 then table.remove(activeCache, i) continue end
-                    end
-
                     local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or (v:IsA("Model") and v.PrimaryPart)
                     if part then
                         local dist = (hrp.Position - part.Position).Magnitude
-                        if dist < minDist then minDist = dist nearest = part end
+                        if dist < minDist then 
+                            minDist = dist
+                            nearest = part 
+                        end
                     end
                 else 
                     table.remove(activeCache, i) 
@@ -525,35 +535,45 @@ task.spawn(function()
             end
 
             if nearest then
-                local toolKey = (not isMining) and Enum.KeyCode.Two or Enum.KeyCode.One
+                CurrentNearestTarget = nearest
+                
+                -- Equipaggiamento automatico
+                local toolKey = (activeCache == TargetCacheMobs) and Enum.KeyCode.Two or Enum.KeyCode.One
                 if not LocalPlayer.Character:FindFirstChildWhichIsA("Tool") then
                     VirtualInputManager:SendKeyEvent(true, toolKey, false, game)
                     task.wait(0.1)
                 end
 
-                local offset = _G.Settings.Method == "above" and _G.Settings.Distance or -(_G.Settings.Distance + 2)
-                local targetPos = nearest.Position + Vector3.new(0, offset, 0)
-                
-                -- LOGICA DI AGGANCIO (FIX)
-                local distanceToTarget = (targetPos - hrp.Position).Magnitude
-                
-                if distanceToTarget > 1.5 then
-                    -- Raggiungi la roccia
-                    local direction = (targetPos - hrp.Position).Unit
-                    hrp.CFrame = hrp.CFrame + (direction * (_G.Settings.TweenSpeed * deltaTime))
+                -- LOGICA "BELOW" E "ABOVE" CORRETTA
+                local finalYOffset = 0
+                if _G.Settings.Method == "above" then
+                    finalYOffset = _G.Settings.Distance
                 else
-                    -- AGGANCIO: Sei arrivato, rimani fermo sopra/sotto e guarda l'oggetto
-                    hrp.Velocity = Vector3.new(0,0,0)
-                    -- Mantiene solo la posizione target ignorando piccoli delta
-                    hrp.CFrame = CFrame.new(targetPos) 
+                    -- "below" sottrae la distanza invece di sommarla per portarti sotto l'oggetto
+                    finalYOffset = -(_G.Settings.Distance + 2)
                 end
-                
-                -- Mira fissa sull'oggetto (fondamentale per non mancare i colpi)
-                hrp.CFrame = CFrame.lookAt(hrp.Position, nearest.Position)
-                hrp.Velocity = Vector3.new(0,0,0)
+
+                local targetPos = nearest.Position + Vector3.new(0, finalYOffset, 0)
+                local direction = (targetPos - hrp.Position)
+                local distanceToTarget = direction.Magnitude
+
+                if distanceToTarget > 0.6 then 
+                    -- Viaggio verso il target
+                    local moveVelocity = direction.Unit * _G.Settings.TweenSpeed
+                    hrp.Velocity = moveVelocity
+                    hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(nearest.Position.X, nearest.Position.Y, nearest.Position.Z))
+                else
+                    -- STAZIONAMENTO FISSO (Anti-Shake)
+                    hrp.Velocity = Vector3.new(0, 0, 0)
+                    hrp.RotVelocity = Vector3.new(0, 0, 0)
+                    -- Blocca il personaggio e lo fa guardare verso il target (anche se è sopra o sotto)
+                    hrp.CFrame = CFrame.new(targetPos, nearest.Position)
+                end
+            else
+                CurrentNearestTarget = nil
             end
         end
     end
 end)
 
-print("Bubu Hub v41 - Precision Rock Farming & Static Lock Applied")
+print("Bubu Hub v41 - Fixed Below Method Applied")
