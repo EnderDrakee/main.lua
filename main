@@ -1,4 +1,4 @@
--- Bubu Hub v43 (Fix Vibration & Anchor Stability)
+-- Bubu Hub v43 (WalkSpeed Multiplier Update)
 -- Optimized by Gemini for The Forge
 
 local UserInputService = game:GetService("UserInputService")
@@ -19,7 +19,7 @@ _G.Settings = {
     TweenSpeed = 43,
     Distance = 5,
     Noclip = false,
-    WalkSpeed = 16,
+    SpeedMultiplier = 1, -- Modificato: da WalkSpeed a Multiplier
     JumpPower = 50,
     InfJump = false,
     FullBright = false
@@ -259,7 +259,7 @@ local function CreateButton(page, text, callback)
     Btn.MouseButton1Click:Connect(callback)
 end
 
-local function CreateSlider(page, text, min, max, def, var)
+local function CreateSlider(page, text, min, max, def, var, isFloat)
     local Frame = Instance.new("Frame", page); Frame.Size = UDim2.new(1, -10, 0, 50); Frame.BackgroundColor3 = Colors.Element; Instance.new("UICorner", Frame)
     local L = Instance.new("TextLabel", Frame); L.Text = "  "..text; L.Size = UDim2.new(1,0,0,25); L.BackgroundTransparency = 1; L.TextColor3 = Colors.Text; L.Font = Enum.Font.Gotham; L.TextSize = 13; L.TextXAlignment = Enum.TextXAlignment.Left
     local V = Instance.new("TextLabel", Frame); V.Text = tostring(def); V.Size = UDim2.new(1,-10,0,25); V.BackgroundTransparency = 1; V.TextColor3 = Colors.TextDark; V.Font = Enum.Font.Gotham; V.TextSize = 12; V.TextXAlignment = Enum.TextXAlignment.Right
@@ -270,7 +270,11 @@ local function CreateSlider(page, text, min, max, def, var)
             local move; move = UserInputService.InputChanged:Connect(function(i)
                 if i.UserInputType == Enum.UserInputType.MouseMovement then
                     local p = math.clamp((i.Position.X - B.AbsolutePosition.X) / B.AbsoluteSize.X, 0, 1)
-                    F.Size = UDim2.new(p, 0, 1, 0); local val = math.floor(min + (max-min)*p); V.Text = tostring(val); _G.Settings[var] = val
+                    F.Size = UDim2.new(p, 0, 1, 0)
+                    local rawVal = min + (max-min)*p
+                    local val = isFloat and (math.floor(rawVal * 10) / 10) or math.floor(rawVal)
+                    V.Text = tostring(val)
+                    _G.Settings[var] = val
                 end
             end)
             local release; release = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect(); release:Disconnect() end end)
@@ -450,7 +454,8 @@ local MiscPage = CreateTab("Misc")
 CreateSection(MiscPage, "PLAYER MODS")
 CreateToggle(MiscPage, "Noclip", "Noclip")
 CreateToggle(MiscPage, "Infinite Jump", "InfJump")
-CreateSlider(MiscPage, "WalkSpeed", 16, 200, 16, "WalkSpeed")
+-- Slider Modificato: Moltiplicatore da 1.0 a 2.0
+CreateSlider(MiscPage, "Speed Multiplier", 1, 2, 1, "SpeedMultiplier", true)
 CreateSlider(MiscPage, "JumpPower", 50, 400, 50, "JumpPower")
 CreateSection(MiscPage, "WORLD MODS")
 CreateToggle(MiscPage, "Full Bright", "FullBright")
@@ -458,8 +463,6 @@ CreateToggle(MiscPage, "Full Bright", "FullBright")
 CreateSection(MiscPage, "FORGE TOOLS")
 CreateButton(MiscPage, "Open Forge UI", function()
     local targetPrompt = nil
-    
-    -- 1. Ricerca avanzata del prompt (controlla più nomi possibili)
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") then
             local name = v.Parent.Name:lower()
@@ -472,28 +475,15 @@ CreateButton(MiscPage, "Open Forge UI", function()
     end
     
     if targetPrompt then
-        -- 2. Sposta leggermente il personaggio verso la forgia per essere sicuri del range
-        -- (Molti giochi bloccano l'interazione se sei troppo lontano)
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local originalPos = LocalPlayer.Character.HumanoidRootPart.CFrame
-            -- Ci teletrasportiamo sopra il prompt per un istante
             LocalPlayer.Character.HumanoidRootPart.CFrame = targetPrompt.Parent.CFrame + Vector3.new(0, 3, 0)
-            
             task.wait(0.1)
-            
-            -- 3. Attivazione simulata profonda
             fireproximityprompt(targetPrompt)
-            
-            -- 4. Simulazione pressione prolungata (Hold Duration)
             task.spawn(function()
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                task.wait(targetPrompt.HoldDuration + 0.2) -- Aspetta il tempo di caricamento del prompt + margine
+                task.wait(targetPrompt.HoldDuration + 0.2)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                
-                -- Torna alla posizione originale (opzionale, rimuovi se preferisci restare lì)
-                -- LocalPlayer.Character.HumanoidRootPart.CFrame = originalPos
             end)
-            
             SendNotification("Attempting Forge Open", true)
         end
     else
@@ -518,18 +508,29 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- === CORE LOGIC ===
-RunService.Stepped:Connect(function()
+-- === CORE LOGIC (WALKSPEED MULTIPLIER) ===
+RunService.Stepped:Connect(function(dt)
     if (_G.Settings.AutoFarm or _G.Settings.AutoCombat or _G.Settings.Noclip) and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
             if v:IsA("BasePart") then v.CanCollide = false end 
         end
     end
     
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = _G.Settings.WalkSpeed
-        LocalPlayer.Character.Humanoid.JumpPower = _G.Settings.JumpPower
-        LocalPlayer.Character.Humanoid.UseJumpPower = true
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hum = LocalPlayer.Character.Humanoid
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        
+        -- Bypass WalkSpeed Detection tramite CFrame Interpolation basata sul moltiplicatore
+        -- Mantiene il WalkSpeed del gioco originale per evitare ban, ma muove il CFrame più velocemente
+        if _G.Settings.SpeedMultiplier > 1 and hum.MoveDirection.Magnitude > 0 then
+            -- Calcola lo spostamento extra basato sulla velocità attuale e sul moltiplicatore
+            local currentSpeed = hum.WalkSpeed
+            local extraSpeed = (currentSpeed * _G.Settings.SpeedMultiplier) - currentSpeed
+            hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (extraSpeed * dt))
+        end
+
+        hum.JumpPower = _G.Settings.JumpPower
+        hum.UseJumpPower = true
     end
     
     if _G.Settings.FullBright then 
@@ -677,4 +678,4 @@ task.spawn(function()
     end
 end)
 
-print("Bubu Hub v43 - Combat Fix & Forge UI Button Loaded")
+print("Bubu Hub v43 - Speed Multiplier System Loaded!")
