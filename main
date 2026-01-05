@@ -1,4 +1,4 @@
--- Bubu Hub v43 (WalkSpeed Multiplier Update)
+-- Bubu Hub v43 (WalkSpeed Velocity Fix)
 -- Optimized by Gemini for The Forge
 
 local UserInputService = game:GetService("UserInputService")
@@ -454,7 +454,6 @@ local MiscPage = CreateTab("Misc")
 CreateSection(MiscPage, "PLAYER MODS")
 CreateToggle(MiscPage, "Noclip", "Noclip")
 CreateToggle(MiscPage, "Infinite Jump", "InfJump")
--- Slider Modificato: Moltiplicatore da 1.0 a 2.0
 CreateSlider(MiscPage, "Speed Multiplier", 1, 2, 1, "SpeedMultiplier", true)
 CreateSlider(MiscPage, "JumpPower", 50, 400, 50, "JumpPower")
 CreateSection(MiscPage, "WORLD MODS")
@@ -508,8 +507,8 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- === CORE LOGIC (WALKSPEED MULTIPLIER) ===
-RunService.Stepped:Connect(function(dt)
+-- === CORE LOGIC (WALKSPEED FIX) ===
+RunService.Heartbeat:Connect(function(dt)
     if (_G.Settings.AutoFarm or _G.Settings.AutoCombat or _G.Settings.Noclip) and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
             if v:IsA("BasePart") then v.CanCollide = false end 
@@ -520,13 +519,13 @@ RunService.Stepped:Connect(function(dt)
         local hum = LocalPlayer.Character.Humanoid
         local hrp = LocalPlayer.Character.HumanoidRootPart
         
-        -- Bypass WalkSpeed Detection tramite CFrame Interpolation basata sul moltiplicatore
-        -- Mantiene il WalkSpeed del gioco originale per evitare ban, ma muove il CFrame più velocemente
+        -- VELOCITY BYPASS FIX
         if _G.Settings.SpeedMultiplier > 1 and hum.MoveDirection.Magnitude > 0 then
-            -- Calcola lo spostamento extra basato sulla velocità attuale e sul moltiplicatore
-            local currentSpeed = hum.WalkSpeed
-            local extraSpeed = (currentSpeed * _G.Settings.SpeedMultiplier) - currentSpeed
-            hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (extraSpeed * dt))
+            local currentVelocity = hrp.AssemblyLinearVelocity
+            local newVelocity = hum.MoveDirection * (hum.WalkSpeed * _G.Settings.SpeedMultiplier)
+            
+            -- Applica velocità su X e Z, mantieni Y (gravità/salto)
+            hrp.AssemblyLinearVelocity = Vector3.new(newVelocity.X, currentVelocity.Y, newVelocity.Z)
         end
 
         hum.JumpPower = _G.Settings.JumpPower
@@ -678,4 +677,4 @@ task.spawn(function()
     end
 end)
 
-print("Bubu Hub v43 - Speed Multiplier System Loaded!")
+print("Bubu Hub v43 - Speed Fix Applied!")
